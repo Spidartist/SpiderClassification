@@ -4,7 +4,7 @@ import tensorflow as tf
 import cv2
 import os
 from keras.layers import Conv2D, Dense, MaxPool2D, Input, Flatten, BatchNormalization, Dropout
-from keras.models import Model
+from keras.models import Model, Sequential
 from keras.utils import plot_model
 from keras.metrics import Recall, Precision
 from keras.callbacks import EarlyStopping, ModelCheckpoint
@@ -15,6 +15,7 @@ char_to_int = dict((c, i) for i, c in enumerate(labels))
 onehot_encoded = dict()
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+
 
 def get_path_X(type_data):
     data_path = []
@@ -73,10 +74,10 @@ val_Y = get_Y(val_X_path)
 train_ds = tf_dataset(train_X_path, train_Y)
 valid_ds = tf_dataset(val_X_path, val_Y)
 
-for x, y in train_ds:
-    print(x.shape)
-    print(y.shape)
-    break
+# for x, y in train_ds:
+#     print(x.shape)
+#     print(y.shape)
+#     break
 
 
 def build_model():
@@ -84,16 +85,42 @@ def build_model():
     inputs = Input((size, size, 3))
     x = inputs
     x = Conv2D(64, (3, 3), activation="relu")(x)
+    x = MaxPool2D((2, 2), strides=2)(x)
     x = Conv2D(128, (3, 3), activation="relu")(x)
     x = MaxPool2D((2, 2), strides=2)(x)
-    x = BatchNormalization()(x)
     x = Dropout(0.3)(x)
     x = Flatten()(x)
-    x = Dense(1024, activation="relu")(x)
-    x = BatchNormalization()(x)
-    x = Dropout(0.3)(x)
     x = Dense(len(labels), activation="softmax")(x)
     return Model(inputs, x)
+
+
+def build_seq_model():
+    model = Sequential()
+
+    # convolutional layer
+    model.add(
+        Conv2D(50, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=(224, 224, 3)))
+
+    # convolutional layer
+    model.add(Conv2D(75, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu'))
+    model.add(MaxPool2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
+
+    model.add(Conv2D(125, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu'))
+    model.add(MaxPool2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
+
+    # flatten output of conv
+    model.add(Flatten())
+
+    # hidden layer
+    model.add(Dense(500, activation='relu'))
+    model.add(Dropout(0.4))
+    model.add(Dense(250, activation='relu'))
+    model.add(Dropout(0.3))
+    # output layer
+    model.add(Dense(15, activation='softmax'))
+    return model
 
 
 if __name__ == "__main__":
@@ -101,11 +128,23 @@ if __name__ == "__main__":
     lr = 1e-4
     epochs = 50
 
-    cnn_model = build_model()
+    cnn_model = Sequential()
+
+    pretrained_model = tf.keras.applications.ResNet50(include_top=False,
+                                                      input_shape=(224, 224, 3),
+                                                      pooling='max', classes=15,
+                                                      weights='imagenet')
+    for layer in pretrained_model.layers:
+        layer.trainable = False
+
+    cnn_model.add(pretrained_model)
+    cnn_model.add(Flatten())
+    cnn_model.add(Dense(1024, activation='relu'))
+    cnn_model.add(Dense(15, activation='softmax'))
     plot_model(cnn_model, "model.png", show_shapes=True)
     cnn_model.summary()
     metrics = ["acc", Recall(), Precision()]
-    cnn_model.compile(loss="binary_crossentropy", optimizer="adam", metrics=metrics)
+    cnn_model.compile(loss="categorical_crossentropy", optimizer="adam", metrics=metrics)
     callbacks = [
         ModelCheckpoint("files/model_new.h5"),
         EarlyStopping(monitor="val_loss", patience=10, restore_best_weights=False)
