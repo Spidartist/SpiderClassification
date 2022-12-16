@@ -15,7 +15,7 @@ class Normalization(Layer):
         return (inputs - self.mean) / self.std
 
 
-cnn_model = load_model("./spider.h5", custom_objects={'Normalization': Normalization})
+cnn_model = load_model("./files/spider.h5", custom_objects={'Normalization': Normalization})
 class_names = ['Black Widow',
                'Blue Tarantula',
                'Bold Jumper',
