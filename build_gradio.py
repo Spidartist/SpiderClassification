@@ -5,6 +5,7 @@ import numpy as np
 
 softmax = Softmax()
 
+
 class Normalization(Layer):
     def __init__(self, name=None, **kwargs):
         super(Normalization, self).__init__()
